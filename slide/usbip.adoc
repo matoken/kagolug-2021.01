@@ -1,0 +1,408 @@
+=  ネットワーク経由でUSB共有
+Kenichiro Matohara(matoken) <maroken@kagolug.org>
+:revnumber: 1.0
+:revdate: 2020-12-26(Sat)
+:revremark: 鹿児島らぐ 2021.01「{doctitle}」
+:homepage: https://matoken.org/
+:imagesdir: resources
+:data-uri:
+:backend: revealjs
+:revealjs_theme: serif
+:customcss: resources/my-css.css
+:revealjs_slideNumber: c/t
+:title-slide-transition: none
+:icons: font
+:revealjs_hash: true
+:revealjs_center: true
+:revealjs_autoPlayMedia: true
+:revealjs_transition: false  
+:revealjs_transitionSpeed: fast
+
+== !
+
+image::moo.jpg[]
+
+link:https://matoken.org/blog/2019/04/02/april-fools-cow-from-apt-apt-get/[`$ apt --color moo moo 2>/dev/null | sed -e 's/Have you mooed today?/Happy MOO Year!/'`]
+
+== link:https://matoken.org[Kenichiro Matohara(matoken) https://matoken.org]
+
+image::map.jpg[background, size=cover]
+
+* 南隅から参加(鹿児島の右下)
+* 好きなLinuxディストリビューションはDebian
+* お仕事募集 mailto:work@matohara.org
+
+== 最近の発表
+
+* 「link:https://www.edocr.com/v/3al6wy4p[誰でもファイルアップロード]」 link:https://kagolug.connpass.com/event/197081/[鹿児島Linux勉強会 2020.12(オンライン開催)] 2020-12-26
+* 「link:https://www.edocr.com/v/47o8nae4[VeraCryptをzuluCryptで]」 link:https://koedolug.connpass.com/event/198954/[小江戸らぐ 1月のオフな集まり(第222回)] 2021-01-09
+* 「link:https://www.edocr.com/v/kwbbxp9n/matoken/BitbarSwiftBarLinux[Bitbar/SwiftBarをLinuxでも使いたい」] link:https://tokaidolug.connpass.com/event/198980/[東海道らぐ　あひる焼きさんのライトニングトークダービー！] 2021-01-23
+
+== USB port死にかけ?
+
+* スマホや2.5インチHDDを繋ぐと勝手に切れてしまう
+* スマホは数秒毎に充電ランプが付いたり消えたり
+* 自己給電の3.5インチHDDは調子がいいような?
+* 再起動すると直ったり?
+* USB周りのリセッタブルヒューズとかコンデンサとかが死にかけている?
+
+== 正攻法
+
+* USB portを増設
+** PCI Express/PC Card/Express Card
+* 増設できないマシン（◞‸◟）
+
+== そういえばネットワーク経由でUSBが共有できたはず
+
+== USB/IP
+
+* ネットワーク経由でUSBを共有
+* LinuxからLinuxに共有
+* LinuxからWindows(とReactOS)に共有
+* Linuxでは3.17からメインラインkernelに入った
+
+link:http://usbip.sourceforge.net/[USB/IP Project]
+
+=== !
+
+image:http://usbip.sourceforge.net/images/usbip-design.png[]
+http://usbip.sourceforge.net/images/usbip-design.png
+
+== Linux source
+
+drivers/usb/usbip::
+https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/tree/drivers/usb/usbip
+tools/usb/usbip::
+https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/tree/tools/usb/usbip
+
+== Config
+
+----
+$ grep -i usbip /boot/config-`uname -r`
+CONFIG_USBIP_CORE=m
+CONFIG_USBIP_VHCI_HCD=m
+CONFIG_USBIP_VHCI_HC_PORTS=15
+CONFIG_USBIP_VHCI_NR_HCS=8
+CONFIG_USBIP_HOST=m
+CONFIG_USBIP_VUDC=m
+# CONFIG_USBIP_DEBUG is not set
+----
+
+== 導入
+
+.Debian sid amd64/Raspberry Pi OS armhf(buster)
+----
+$ sudo apt install usbip
+----
+
+.Ubuntu 21.04 Hirsute Hippo (development branch) amd64
+----
+$ sudo apt install linux-tools-common
+----
+
+== ホスト(USBを接続する)側の設定
+
+.usbipd(8) の EXAMPLES
+____
+$ man usbipd | grep ^EXAMPLES$ -A 12
+EXAMPLES
+           server:# modprobe usbip-host
+
+           server:# usbipd -D
+               - Start usbip daemon.
+
+           server:# usbip list --local
+               - List driver assignments for usb devices.
+
+           server:# usbip bind --busid=1-2
+               - Bind usbip-host.ko to the device of busid 1-2.
+               - A usb device 1-2 is now exportable to other hosts!
+               - Use 'usbip unbind --busid=1-2' when you want to shutdown exporting and use the device locally.
+____
+
+=== usb host moduleの読み込み
+
+[source, shell]
+----
+$ sudo modprobe -v usbip_host
+insmod /lib/modules/5.8.0-36-generic/kernel/drivers/usb/usbip/usbip-core.ko 
+insmod /lib/modules/5.8.0-36-generic/kernel/drivers/usb/usbip/usbip-host.ko
+----
+
+=== usbipdの起動
+
+[source, shell]
+----
+$ sudo usbipd -D
+----
+
+=== ローカルマシンのUSBデバイスを確認
+
+.今回は busid 1-1.1 の Webcam を共有したい
+[source, shell]
+----
+$ usbip list -l
+ - busid 1-1.1 (046d:0825)
+   Logitech, Inc. : Webcam C270 (046d:0825)
+
+ - busid 1-1.4 (0a5c:217f)
+   Broadcom Corp. : BCM2045B (BDC-2.1) (0a5c:217f)
+
+ - busid 1-1.5.3 (2109:0715)
+   VIA Labs, Inc. : VL817 SATA Adaptor (2109:0715)
+----
+
+.busidを指定してbind
+[source, shell]
+----
+$ sudo usbip bind -b 1-1.1
+usbip: info: bind device on busid 1-1.1: complete
+$ ls -A /sys/bus/usb/drivers/usbip-host
+1-1.1  bind  match_busid  module  rebind  uevent  unbind
+$ cat /sys/bus/usb/drivers/usbip-host/match_busid
+1-1.1
+----
+
+== サーバ側の設定完了
+
+== クライアント(USB機器を利用する)側の設定
+
+.usbip(8)のEXAMPLES
+____
+$ man usbip | grep ^EXAMPLES$ -A 10
+EXAMPLES
+           client:# usbip list --remote=server
+               - List devices exported by remote server.
+
+           client:# modprobe vhci-hcd
+
+           client:# usbip attach --remote=server --busid=1-2
+               - Connect the remote USB device.
+
+           client:# usbip detach --port=0
+               - Detach the usb device.
+____
+
+=== リモートのデバイスを確認
+
+[source, shell]
+----
+$ usbip list -r 192.168.1.180
+Exportable USB devices
+======================
+ - 192.168.1.180
+      1-1.1: Logitech, Inc. : Webcam C270 (046d:0825)
+           : /sys/devices/pci0000:00/0000:00:1a.0/usb1/1-1/1-1.1
+           : Miscellaneous Device / ? / Interface Association (ef/02/01)
+----
+
+=== モジュールの読み込み
+
+----
+$ sudo modprobe -v vhci-hcd
+----
+
+=== デバイスをattach
+
+[source, shell]
+----
+$ sudo usbip attach -r 192.168.1.180 -b 1-1.1
+----
+
+=== attachしたデバイスの確認
+
+[source, shell]
+----
+$ usbip port
+Imported USB devices
+====================
+libusbip: error: fopen
+libusbip: error: read_record
+Port 00: <Port in Use> at High Speed(480Mbps)
+       Logitech, Inc. : Webcam C270 (046d:0825)
+       5-1 -> unknown host, remote port and remote busid
+           -> remote bus/dev 001/018
+$ sudo usbip port
+Imported USB devices
+====================
+Port 00: <Port in Use> at High Speed(480Mbps)
+       Logitech, Inc. : Webcam C270 (046d:0825)
+       5-1 -> usbip://192.168.1.180:3240/1-1.1
+           -> remote bus/dev 001/018
+$ ls -A /sys/bus/platform/drivers/vhci_hcd/vhci_hcd.0
+attach  driver           modalias  power   status.1  status.3  status.5  status.7   uevent  usb6
+detach  driver_override  nports    status  status.2  status.4  status.6  subsystem  usb5    usbip_debug
+$ cat /sys/bus/platform/drivers/vhci_hcd/vhci_hcd.0/status 
+hub port sta spd dev      sockfd local_busid
+hs  0000 004 000 00000000 000000 0-0
+hs  0001 004 000 00000000 000000 0-0
+hs  0002 004 000 00000000 000000 0-0
+hs  0003 004 000 00000000 000000 0-0
+hs  0004 004 000 00000000 000000 0-0
+hs  0005 004 000 00000000 000000 0-0
+hs  0006 004 000 00000000 000000 0-0
+hs  0007 004 000 00000000 000000 0-0
+hs  0008 004 000 00000000 000000 0-0
+hs  0009 004 000 00000000 000000 0-0
+hs  0010 004 000 00000000 000000 0-0
+hs  0011 004 000 00000000 000000 0-0
+hs  0012 004 000 00000000 000000 0-0
+hs  0013 004 000 00000000 000000 0-0
+hs  0014 004 000 00000000 000000 0-0
+ss  0015 004 000 00000000 000000 0-0
+ss  0016 004 000 00000000 000000 0-0
+ss  0017 004 000 00000000 000000 0-0
+ss  0018 004 000 00000000 000000 0-0
+ss  0019 004 000 00000000 000000 0-0
+ss  0020 004 000 00000000 000000 0-0
+ss  0021 004 000 00000000 000000 0-0
+ss  0022 004 000 00000000 000000 0-0
+ss  0023 004 000 00000000 000000 0-0
+ss  0024 004 000 00000000 000000 0-0
+ss  0025 004 000 00000000 000000 0-0
+ss  0026 004 000 00000000 000000 0-0
+ss  0027 004 000 00000000 000000 0-0
+ss  0028 004 000 00000000 000000 0-0
+ss  0029 004 000 00000000 000000 0-0
+----
+
+=== dmesg
+
+----
+$ sudo dmesg
+  :
+[354830.095734] usb 5-1: SetAddress Request (5) to port 0
+[354830.332251] usb 5-1: New USB device found, idVendor=046d, idProduct=0825, bcdDevice= 0.10
+[354830.332254] usb 5-1: New USB device strings: Mfr=0, Product=0, SerialNumber=2
+[354830.332256] usb 5-1: SerialNumber: 7680CBD0
+[354830.333594] uvcvideo: Found UVC 1.00 device <unnamed> (046d:0825)
+[354830.446675] usb 5-1: set resolution quirk: cval->res = 384
+----
+
+=== 後は普通に使える(はず)
+
+* ローカルに接続したときときと同様に使えている
+* 帯域の問題はある
+** 54Mbpsの回線ではUVCでQVGAにしないとうまく映らなかった
+** USB 2.0 -> 最大480Mbps
+** 1Gbpsの回線にすると最大解像度でもOKになった
+* USB 3.xは未確認
+
+== USBデバイスの取り外し
+
+
+=== クライアント側の切断操作
+
+.リモートUSBデバイスを切断． <port> は usbip port かattach時のdmesgを確認する．
+----
+$ sudo usbip detach -p 00
+usbip: info: Port 0 is now detached!
+----
+
+.moduleの開放
+----
+$ sudo rmmod -v vhci_hcd usbip_core
+----
+
+=== サーバ側の切断操作
+
+.アンバインド
+----
+$ sudo usbip unbind -b 1-1.1
+usbip: info: unbind device on busid 1-1.1: complete
+----
+
+.daemonをkill
+----
+$ pgrep usbipd
+1904196
+$ sudo killall usbipd
+$ pgrep usbipd
+----
+
+.moduleの開放
+----
+$ lsmod | grep usbip
+usbip_host             36864  0
+usbip_core             40960  1 usbip_host
+$ sudo rmmod -v usbip_host usbip_core
+$ lsmod | grep usbip
+----
+
+=== !
+
+リソースを気にしないなら単にUSB機器を取り外すだけでも問題なさそう?
+
+== ネットワークについて
+
+* デフォルトではTCP port 3240を利用
+* tcpwrapper利用可能
+* 経路は暗号化されない?
+
+== 問題
+
+* vhci_hcdが大量のログを吐く
+----
+$ sudo dmesg | pee "wc -l" "grep vhci_hcd | wc -l"
+3146
+2984
+----
+* Raspberry Pi OS armhfで共有したデバイスをリモートマシンから利用できない? +
+リモートのデバイスを利用することは可能  +
+kernelなど色々いじっている環境なので標準環境で再度確認予定
+
+=== !
+
+----
+$ usbip list -r 10.42.0.253
+usbip: error: Exported Device List Request failed - Request Completed Successfully
+
+usbip: error: failed to get device list from 10.42.0.253
+$ usbip --debug list -r 10.42.0.253 2>&1 | grep -v 'usbip: debug: names.c:'
+usbip: debug: usbip.c:129:[run_command] running command: `list'
+usbip: debug: usbip_list.c:138:[list_exported_devices] connected to 10.42.0.253:3240
+usbip: debug: usbip_network.c:171:[usbip_net_recv_op_common] usbip_net_recv failed: -1
+usbip: error: Exported Device List Request failed - Request Completed Successfully
+
+usbip: error: failed to get device list from 10.42.0.253
+$ sudo usbip --debug list -r 10.42.0.253 -b 1-1.3 2>&1 | grep -v 'usbip: debug: names.c:'
+usbip: debug: usbip.c:129:[run_command] running command: `list'
+usbip: debug: usbip_list.c:138:[list_exported_devices] connected to 10.42.0.253:3240
+usbip: debug: usbip_network.c:171:[usbip_net_recv_op_common] usbip_net_recv failed: -1
+usbip: error: Exported Device List Request failed - Request Completed Successfully
+
+usbip: error: failed to get device list from 10.42.0.253
+$ usbip port
+Imported USB devices
+====================
+----
+
+----
+$ usbip list -r localhost
+usbip: error: Exported Device List Request failed - Unknown Op Common Status
+
+usbip: error: failed to get device list from localhost
+----
+
+////
+== 永続化
+
+* module
+////
+
+== まとめ
+
+* USBデバイスをリモートで利用できるようになった
+* ローカルに接続したときと同じ使用感
+* USBはmax 5mなのでそれ以上に引き回したいときにも使えそう
+* 帯域がたくさん必要なので動画などには向かない
+* マウントしてファイルを共有，ビデオデコードして利用などしたほうが帯域は少なくて済むので使い分けると良さそう
+
+== 奥付
+
+* 発表
+** link:https://kagolug.connpass.com/event/200913/[鹿児島Linux勉強会 2021.01(オンライン開催)] 2021-01-30(sun)
+* 発表者
+** link:https://matoken.org/[Kenichiro Matohara(matoken)]
+* ライセンス
+** CC BY-NC-SA 4.0
