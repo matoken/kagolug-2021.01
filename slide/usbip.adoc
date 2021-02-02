@@ -1,11 +1,14 @@
 =  ネットワーク経由でUSB共有
 Kenichiro Matohara(matoken) <maroken@kagolug.org>
 :revnumber: 1.0
-:revdate: 2020-12-26(Sat)
+:revdate: 2021-01-31(Sun)
 :revremark: 鹿児島らぐ 2021.01「{doctitle}」
 :homepage: https://matoken.org/
 :imagesdir: resources
 :data-uri:
+:example-caption: 例
+:table-caption: 表
+:figure-caption: 図
 :backend: revealjs
 :revealjs_theme: serif
 :customcss: resources/my-css.css
@@ -42,15 +45,18 @@ image::map.jpg[background, size=cover]
 
 * スマホや2.5インチHDDを繋ぐと勝手に切れてしまう
 * スマホは数秒毎に充電ランプが付いたり消えたり
+* Webcamがビデオチャット中に使えなくなったり
 * 自己給電の3.5インチHDDは調子がいいような?
-* 再起動すると直ったり?
+* しばらく放置したり再起動すると直ったり?
 * USB周りのリセッタブルヒューズとかコンデンサとかが死にかけている?
 
 == 正攻法
 
+* 端末買い替え
 * USB portを増設
 ** PCI Express/PC Card/Express Card
-* 増設できないマシン（◞‸◟）
+
+懐が寂しい&増設できないマシン（◞‸◟）
 
 == そういえばネットワーク経由でUSBが共有できたはず
 
@@ -65,8 +71,15 @@ link:http://usbip.sourceforge.net/[USB/IP Project]
 
 === !
 
+.https://en.opensuse.org/SDB:USBIP
+image::https://en.opensuse.org/images/c/c5/Usbip_arch.jpg[]
+
+
+////
 image:http://usbip.sourceforge.net/images/usbip-design.png[]
+
 http://usbip.sourceforge.net/images/usbip-design.png
+////
 
 == Linux source
 
@@ -99,6 +112,8 @@ $ sudo apt install usbip
 ----
 $ sudo apt install linux-tools-common
 ----
+
+NOTE: link:https://packages.ubuntu.com/search?keywords=usbip[Ubuntu 16.04 LTS Xenialはusbip]
 
 == ホスト(USBを接続する)側の設定
 
@@ -198,8 +213,11 @@ Exportable USB devices
 
 === モジュールの読み込み
 
+[source, shell]
 ----
 $ sudo modprobe -v vhci-hcd
+insmod /lib/modules/5.10.0-2-amd64/kernel/drivers/usb/usbip/usbip-core.ko
+insmod /lib/modules/5.10.0-2-amd64/kernel/drivers/usb/usbip/vhci-hcd.ko
 ----
 
 === デバイスをattach
@@ -268,6 +286,7 @@ ss  0029 004 000 00000000 000000 0-0
 
 === dmesg
 
+[source, shell]
 ----
 $ sudo dmesg
   :
@@ -282,10 +301,11 @@ $ sudo dmesg
 === 後は普通に使える(はず)
 
 * ローカルに接続したときときと同様に使えている
-* 帯域の問題はある
+* 帯域の問題
 ** 54Mbpsの回線ではUVCでQVGAにしないとうまく映らなかった
 ** USB 2.0 -> 最大480Mbps
 ** 1Gbpsの回線にすると最大解像度でもOKになった
+* Keyboardも試したがローカルと違いを感じない
 * USB 3.xは未確認
 
 == USBデバイスの取り外し
@@ -326,7 +346,6 @@ $ lsmod | grep usbip
 usbip_host             36864  0
 usbip_core             40960  1 usbip_host
 $ sudo rmmod -v usbip_host usbip_core
-$ lsmod | grep usbip
 ----
 
 === !
@@ -341,7 +360,8 @@ $ lsmod | grep usbip
 
 == 問題
 
-* vhci_hcdが大量のログを吐く
+* vhci_hcdがデバッグぽい大量のログを吐く
+[source, shell]
 ----
 $ sudo dmesg | pee "wc -l" "grep vhci_hcd | wc -l"
 3146
@@ -349,10 +369,12 @@ $ sudo dmesg | pee "wc -l" "grep vhci_hcd | wc -l"
 ----
 * Raspberry Pi OS armhfで共有したデバイスをリモートマシンから利用できない? +
 リモートのデバイスを利用することは可能  +
-kernelなど色々いじっている環境なので標準環境で再度確認予定
+kernelなど色々いじっている環境なので標準環境で再度確認予定 -> **その後初期状態から試したら問題なかった**
 
 === !
 
+.Raspberry Pi OSで共有したデバイスが見えない
+[source, shell]
 ----
 $ usbip list -r 10.42.0.253
 usbip: error: Exported Device List Request failed - Request Completed Successfully
@@ -393,16 +415,25 @@ usbip: error: failed to get device list from localhost
 == まとめ
 
 * USBデバイスをリモートで利用できるようになった
-* ローカルに接続したときと同じ使用感
+* USB2.0+1GbEならローカルに接続したときとほぼ同じ使用感
 * USBはmax 5mなのでそれ以上に引き回したいときにも使えそう
 * 帯域がたくさん必要なので動画などには向かない
 * マウントしてファイルを共有，ビデオデコードして利用などしたほうが帯域は少なくて済むので使い分けると良さそう
 
+=== 発表後
+
+* ライセンス用USBドングルをこれで管理していた事例を教えてもらう
+** ドングルは管理しやすい場所のマシンに挿して利用者は席を変更しても同じライセンスを利用でいるように  +
+データ量も小さく，ドングルの管理も楽になって便利そうな活用方法
+* Raspberry Pi OSは初期状態で試すと問題なく動いた
+
 == 奥付
 
-* 発表
-** link:https://kagolug.connpass.com/event/200913/[鹿児島Linux勉強会 2021.01(オンライン開催)] 2021-01-30(sun)
-* 発表者
-** link:https://matoken.org/[Kenichiro Matohara(matoken)]
-* ライセンス
-** CC BY-NC-SA 4.0
+発表::
+link:https://kagolug.connpass.com/event/200913/[鹿児島Linux勉強会 2021.01(オンライン開催)] 2021-01-30(sun)
+発表者::
+link:https://matoken.org/[Kenichiro Matohara(matoken)]
+スライド元Wiki::
+https://wiki.matoken.org/linux/usbip
+ライセンス::
+CC BY-NC-SA 4.0
